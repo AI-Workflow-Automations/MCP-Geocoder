@@ -55,31 +55,31 @@ docker compose up --build     # demo at http://localhost:8080
 
 ### Claude Code in 30 seconds
 
-Prebuilt image on GHCR, no clone needed. stdio via Docker:
+Prebuilt image on GHCR, nothing to clone or install besides Docker:
 
 ```bash
-claude mcp add mcp-geocoder -- docker run -i --rm \
-  -e SERVICE_AREA_POSTAL_CODES=10115,10117,10119 \
-  ghcr.io/ai-workflow-automations/mcp-geocoder:latest bun run src/index.ts
+claude mcp add mcp-geocoder -- docker run -i --rm ghcr.io/ai-workflow-automations/mcp-geocoder stdio
 ```
+
+Restrict to your service area with `-e SERVICE_AREA_POSTAL_CODES=10115,10117,10119` before the image name.
 
 Or run it as a service once and connect over HTTP (also works for Vapi, n8n, etc.):
 
 ```bash
-docker run -d --name geocoder -p 8080:8080 \
-  -e SERVICE_AREA_POSTAL_CODES=10115,10117,10119 \
-  ghcr.io/ai-workflow-automations/mcp-geocoder:latest
+docker run -d --name geocoder -p 8080:8080 ghcr.io/ai-workflow-automations/mcp-geocoder
 claude mcp add --transport http mcp-geocoder http://localhost:8080/mcp
 ```
 
 With `MCP_AUTH_TOKEN` set, add `--header "Authorization: Bearer <token>"` to the second command.
 Use `--scope user` to make the server available in every project.
 
-Inside a clone, [`.mcp.json`](.mcp.json) registers the server automatically — Claude Code
-asks once, then `bun run src/index.ts` starts on demand. Without Docker:
+Without Docker, with Bun installed: clone, install, start Claude Code in the folder.
+[`.mcp.json`](.mcp.json) registers the server for that project, no `claude mcp add` needed.
 
 ```bash
-claude mcp add mcp-geocoder -- bun run /path/to/MCP-Geocoder/src/index.ts
+git clone https://github.com/AI-Workflow-Automations/MCP-Geocoder && cd MCP-Geocoder && pnpm install
+claude                                                    # asks once, then the server starts on demand
+claude mcp add --scope user mcp-geocoder -- bun run "$PWD/src/index.ts"   # optional: every project
 ```
 
 Claude Desktop (`claude_desktop_config.json`):
@@ -89,8 +89,7 @@ Claude Desktop (`claude_desktop_config.json`):
   "mcpServers": {
     "mcp-geocoder": {
       "command": "docker",
-      "args": ["run", "-i", "--rm", "-e", "SERVICE_AREA_POSTAL_CODES=10115,10117,10119",
-               "ghcr.io/ai-workflow-automations/mcp-geocoder:latest", "bun", "run", "src/index.ts"]
+      "args": ["run", "-i", "--rm", "ghcr.io/ai-workflow-automations/mcp-geocoder", "stdio"]
     }
   }
 }
@@ -310,8 +309,9 @@ docker compose --profile photon up        # plus a self-hosted Photon instance
 | `1.2.3`, `1.2`, `1` | release tags `v1.2.3` |
 | `sha-<short>` | exact commit |
 
-Default command is the HTTP server (`src/serve.ts`, port 8080). Append `bun run src/index.ts`
-for stdio. Configuration is entirely via environment variables, see [Configuration](#configuration).
+The entrypoint takes one argument: `serve` (default, HTTP on port 8080) or `stdio` (MCP over
+stdin/stdout for Claude Code and Claude Desktop). Configuration is entirely via environment
+variables, see [Configuration](#configuration).
 
 The image builds in two stages: `node:22-alpine` resolves dependencies with pnpm
 (`node-linker=hoisted`, so `node_modules` is flat), `oven/bun:1-alpine` runs it. No build

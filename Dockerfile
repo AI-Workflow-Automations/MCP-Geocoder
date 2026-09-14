@@ -22,6 +22,7 @@ RUN apk add --no-cache curl
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json tsconfig.json ./
+COPY --chmod=755 docker-entrypoint.sh ./
 COPY src ./src
 COPY web ./web
 
@@ -30,4 +31,6 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD curl -fsS http://localhost:8080/health || exit 1
 
-CMD ["bun", "run", "src/serve.ts"]
+# `serve` = HTTP (Default), `stdio` = MCP über stdin/stdout
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+CMD ["serve"]
