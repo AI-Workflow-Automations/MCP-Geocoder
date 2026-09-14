@@ -53,7 +53,11 @@ describe("Sprache: Sprachausgabe", () => {
 
 describe("Sprache: Begründungen", () => {
   it("formuliert Entscheidungsgründe auf Englisch", () => {
-    const close = decide([candidate("Berliner Straße", 0.93), candidate("Berliner Ring", 0.91)], DEFAULT_THRESHOLDS, "en");
+    const close = decide(
+      [candidate("Berliner Straße", 0.93), candidate("Berliner Ring", 0.91)],
+      DEFAULT_THRESHOLDS,
+      "en",
+    );
     expect(close.reason).toContain("too close");
     expect(decide([], DEFAULT_THRESHOLDS, "en").reason).toBe("No candidate found in the street directory.");
     expect(decide([], DEFAULT_THRESHOLDS).reason).toBe("Kein Kandidat im Straßenverzeichnis gefunden.");
@@ -129,6 +133,8 @@ describe("Sprache: Prompts unter der Haube", () => {
     expect(en.info.description).toContain("phone agents");
     expect(de.info.description).toContain("Telefonagenten");
     expect(Object.keys(en.paths)).toEqual(Object.keys(de.paths));
-    expect(en.paths["/api/address"].post.requestBody.content["application/json"].schema.properties.language).toBeDefined();
+    expect(
+      en.paths["/api/address"].post.requestBody.content["application/json"].schema.properties.language,
+    ).toBeDefined();
   });
 });

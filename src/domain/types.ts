@@ -14,6 +14,9 @@ export type MatchStatus =
   /** Kein tragfähiger Treffer. An einen Menschen übergeben. */
   | "unresolved";
 
+/** Sprache, in der der Agent spricht - gilt für speech, reason und cappedBy. */
+export type Language = "de" | "en";
+
 /** Einzelscores einer Bewertung - macht Fehltreffer im Call-Log nachvollziehbar. */
 export interface ScoreBreakdown {
   /** Zeichenähnlichkeit des Wortstamms */
@@ -72,7 +75,7 @@ export interface AddressResolution {
   best?: StreetCandidate;
   /** Maximal drei, absteigend nach confidence */
   candidates: StreetCandidate[];
-  /** Fertiger deutscher Satz für die Sprachausgabe */
+  /** Fertiger Satz für die Sprachausgabe, in der angeforderten Sprache */
   speech: string;
   heard: HeardAddress;
   /** Klartext-Begründung fürs Call-Log */

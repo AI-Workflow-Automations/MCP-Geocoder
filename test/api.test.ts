@@ -43,7 +43,12 @@ describe("Weboberfläche", () => {
       const llms = await fetch(`${base}/llms.txt`);
       expect(llms.status).toBe(200);
       expect(await llms.text()).toContain("(https://geocoder.example.de/openapi.json)");
-      expect((await fetch(`${base}/favicon.svg`)).headers.get("content-type")).toContain("image/svg+xml");
+      const favicon = await fetch(`${base}/favicon.svg`);
+      expect(favicon.headers.get("content-type")).toContain("image/svg+xml");
+      // XML verbietet "--" in Kommentaren; der Browser bricht das SVG sonst mit Parse-Fehler ab.
+      for (const comment of (await favicon.text()).matchAll(/<!--([\s\S]*?)-->/g)) {
+        expect(comment[1]).not.toContain("--");
+      }
       expect((await fetch(`${base}/robots.txt`)).status).toBe(200);
     } finally {
       await close();

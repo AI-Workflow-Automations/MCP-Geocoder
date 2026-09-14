@@ -2,14 +2,17 @@ import { decide } from "../domain/decision.js";
 import { extractPostalCode, splitHouseNumber } from "../domain/normalization.js";
 import type { DirectoryStreet, RankedStreet, StreetDirectory, StreetSearch } from "../domain/ports.js";
 import { type MatchingThresholds, rankCandidates, scoreStreetName } from "../domain/scoring.js";
-import type { AddressResolution, MatchStatus, StreetCandidate } from "../domain/types.js";
-import { phrases, speakAddress, speakChoices } from "../speech/speech-formatter.js";
+import type { AddressResolution, Language, MatchStatus, StreetCandidate } from "../domain/types.js";
+import { DEFAULT_LANGUAGE } from "../speech/language.js";
+import { phrasesFor, speakAddress, speakChoices } from "../speech/speech-formatter.js";
 
 export interface ResolveAddressInput {
   street: string;
   postalCode?: string;
   houseNumber?: string;
   locality?: string;
+  /** Sprache für speech und reason. Fehlt sie, gilt der Server-Standard. */
+  language?: Language;
 }
 
 /** Photon-Rang leicht einrechnen: der Geocoder weiß mehr über Relevanz als reine Textnähe. */
@@ -41,32 +44,33 @@ export class AddressResolver {
     const street = split.street;
     const houseNumber = input.houseNumber ?? split.houseNumber;
     const postalCode = input.postalCode ? extractPostalCode(input.postalCode) : undefined;
+    const language = input.language ?? DEFAULT_LANGUAGE;
 
     const candidates: StreetCandidate[] = [];
-    if (postalCode) candidates.push(...(await this.fromDirectory(street, postalCode)));
+    if (postalCode) candidates.push(...(await this.fromDirectory(street, postalCode, language)));
 
     const bestSoFar = rankCandidates(candidates, this.thresholds, 1)[0];
     const directoryInsufficient = !(postalCode && bestSoFar) || bestSoFar.confidence < this.thresholds.autoAccept;
-    if (directoryInsufficient && this.search) candidates.push(...(await this.fromSearch(street, postalCode)));
+    if (directoryInsufficient && this.search) candidates.push(...(await this.fromSearch(street, postalCode, language)));
 
     const ranked = rankCandidates(candidates, this.thresholds);
-    const decision = decide(ranked, this.thresholds);
+    const decision = decide(ranked, this.thresholds, language);
 
     return {
       status: decision.status,
       needsHuman: decision.needsHuman,
       best: decision.status === "unresolved" ? undefined : ranked[0],
       candidates: ranked,
-      speech: this.speechFor(decision.status, ranked, houseNumber),
+      speech: this.speechFor(decision.status, ranked, houseNumber, language),
       heard: { postalCode: input.postalCode, street: input.street, houseNumber },
       reason: decision.reason,
     };
   }
 
-  private async fromDirectory(street: string, postalCode: string): Promise<StreetCandidate[]> {
+  private async fromDirectory(street: string, postalCode: string, language: Language): Promise<StreetCandidate[]> {
     try {
       const entries = await this.directory.listStreets(postalCode);
-      return entries.map((entry) => this.toCandidate(street, entry, "openplz"));
+      return entries.map((entry) => this.toCandidate(street, entry, "openplz", language));
     } catch (error) {
       // Upstream weg: nicht abbrechen, die Suche übernimmt. Der Anrufer merkt
       // nichts außer einer etwas schwächeren Konfidenz.
@@ -75,24 +79,38 @@ export class AddressResolver {
     }
   }
 
-  private async fromSearch(street: string, postalCode?: string): Promise<StreetCandidate[]> {
+  private async fromSearch(
+    street: string,
+    postalCode: string | undefined,
+    language: Language,
+  ): Promise<StreetCandidate[]> {
     if (!this.search) return [];
     try {
       const hits = await this.search.search(street, postalCode);
-      return hits.map((hit) => this.toSearchCandidate(street, hit, postalCode));
+      return hits.map((hit) => this.toSearchCandidate(street, hit, language, postalCode));
     } catch (error) {
       this.log.error(`[mcp-geocoder] ${this.search.name} nicht erreichbar: ${(error as Error).message}`);
       return [];
     }
   }
 
-  private toCandidate(heard: string, entry: DirectoryStreet, source: StreetCandidate["source"]): StreetCandidate {
-    const breakdown = scoreStreetName(heard, entry.street);
+  private toCandidate(
+    heard: string,
+    entry: DirectoryStreet,
+    source: StreetCandidate["source"],
+    language: Language,
+  ): StreetCandidate {
+    const breakdown = scoreStreetName(heard, entry.street, language);
     return { ...entry, confidence: breakdown.total, source, breakdown };
   }
 
-  private toSearchCandidate(heard: string, hit: RankedStreet, postalCode?: string): StreetCandidate {
-    const base = this.toCandidate(heard, hit, "photon");
+  private toSearchCandidate(
+    heard: string,
+    hit: RankedStreet,
+    language: Language,
+    postalCode?: string,
+  ): StreetCandidate {
+    const base = this.toCandidate(heard, hit, "photon", language);
     const rankBonus = Math.max(0, SEARCH_RANK_BONUS - hit.rank * SEARCH_RANK_STEP);
     const foreign = postalCode && hit.postalCode && hit.postalCode !== postalCode;
     const penalty = foreign ? FOREIGN_POSTAL_CODE_PENALTY : 0;
@@ -103,14 +121,20 @@ export class AddressResolver {
     };
   }
 
-  private speechFor(status: MatchStatus, candidates: StreetCandidate[], houseNumber?: string): string {
+  private speechFor(
+    status: MatchStatus,
+    candidates: StreetCandidate[],
+    houseNumber: string | undefined,
+    language: Language,
+  ): string {
+    const phrases = phrasesFor(language);
     if (status === "unresolved") return phrases.addressUnresolved;
     if (status === "confirmed") {
       const best = candidates[0];
-      return phrases.confirmAddress(speakAddress(best.street, houseNumber, best.postalCode, best.locality));
+      return phrases.confirmAddress(speakAddress(best.street, houseNumber, best.postalCode, best.locality, language));
     }
-    const options = candidates.map((c) => speakAddress(c.street, undefined, c.postalCode, c.locality));
-    return phrases.chooseAddress(speakChoices(options));
+    const options = candidates.map((c) => speakAddress(c.street, undefined, c.postalCode, c.locality, language));
+    return phrases.chooseAddress(speakChoices(options, language));
   }
 }
 

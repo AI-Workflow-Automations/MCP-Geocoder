@@ -1,6 +1,8 @@
 import type { EscalationEntry, EscalationSink, StreetDirectory, StreetSearch } from "../domain/ports.js";
 import type { MatchingThresholds } from "../domain/scoring.js";
-import { phrases, speakAddress } from "../speech/speech-formatter.js";
+import type { Language } from "../domain/types.js";
+import { DEFAULT_LANGUAGE } from "../speech/language.js";
+import { phrasesFor, speakAddress } from "../speech/speech-formatter.js";
 import { AddressResolver, type ResolveAddressInput } from "./address-resolver.js";
 import { KeytermBuilder } from "./keyterm-builder.js";
 import { PostalCodeResolver } from "./postal-code-resolver.js";
@@ -10,6 +12,8 @@ export interface SelectCandidateInput {
   postalCode: string;
   locality: string;
   houseNumber?: string;
+  /** Sprache des Abschlusssatzes. Fehlt sie, gilt der Server-Standard. */
+  language?: Language;
 }
 
 export interface GeocoderDependencies {
@@ -18,6 +22,8 @@ export interface GeocoderDependencies {
   escalations: EscalationSink;
   thresholds: MatchingThresholds;
   serviceAreaPostalCodes: string[];
+  /** Standardsprache für speech und reason, wenn die Anfrage keine nennt. */
+  language?: Language;
 }
 
 /**
@@ -38,34 +44,36 @@ export class GeocoderService {
     this.keyterms = new KeytermBuilder(deps.directory);
   }
 
-  resolvePostalCode(spoken: string) {
-    return this.postalCodes.resolve(spoken);
+  resolvePostalCode(spoken: string, language?: Language) {
+    return this.postalCodes.resolve(spoken, this.languageOr(language));
   }
 
   resolveAddress(input: ResolveAddressInput) {
-    return this.addresses.resolve(input);
+    return this.addresses.resolve({ ...input, language: this.languageOr(input.language) });
   }
 
   /** Nach einer Auswahlfrage: erst hier gilt die Adresse als erfasst. */
   selectCandidate(input: SelectCandidateInput) {
-    const spoken = speakAddress(input.street, input.houseNumber, input.postalCode, input.locality);
+    const { language: requested, ...address } = input;
+    const language = this.languageOr(requested);
+    const spoken = speakAddress(address.street, address.houseNumber, address.postalCode, address.locality, language);
     return {
       status: "confirmed" as const,
       needsHuman: false,
-      address: input,
-      formatted: `${[input.street, input.houseNumber].filter(Boolean).join(" ")}, ${input.postalCode} ${input.locality}`,
-      speech: phrases.addressRecorded(spoken),
+      address,
+      formatted: `${[address.street, address.houseNumber].filter(Boolean).join(" ")}, ${address.postalCode} ${address.locality}`,
+      speech: phrasesFor(language).addressRecorded(spoken),
     };
   }
 
-  flagForHuman(entry: EscalationEntry) {
+  flagForHuman(entry: EscalationEntry, language?: Language) {
     this.deps.escalations.record(entry);
     return {
       status: "unresolved" as const,
       needsHuman: true,
       logged: true,
       reason: entry.reason,
-      speech: phrases.handoverToHuman,
+      speech: phrasesFor(this.languageOr(language)).handoverToHuman,
     };
   }
 
@@ -80,5 +88,14 @@ export class GeocoderService {
 
   get serviceArea(): string[] {
     return this.deps.serviceAreaPostalCodes;
+  }
+
+  /** Server-Standardsprache. */
+  get language(): Language {
+    return this.deps.language ?? DEFAULT_LANGUAGE;
+  }
+
+  private languageOr(requested?: Language): Language {
+    return requested ?? this.language;
   }
 }

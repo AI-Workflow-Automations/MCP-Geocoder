@@ -1,8 +1,11 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { openApiDocument } from "../api/openapi.js";
+import { buildOpenApiDocument } from "../api/openapi.js";
 import type { GeocoderService } from "../application/geocoder-service.js";
+import type { Language } from "../domain/types.js";
+import { LANGUAGES } from "../speech/language.js";
 import { apiGuideMarkdown } from "./api-guide.js";
+import { mcpTexts } from "./tool-texts.js";
 
 /**
  * MCP-Server: übersetzt Tool-Aufrufe in Aufrufe der Fassade.
@@ -11,21 +14,10 @@ import { apiGuideMarkdown } from "./api-guide.js";
  * OpenAPI-Beschreibung - deshalb liegt die API-Dokumentation auch als
  * MCP-Resource und -Tool bei: ein Client, der nur Tools sieht, kann sie
  * trotzdem abrufen.
+ *
+ * Die Sprache bestimmt, was der Agent liest (Instructions, Tool-Texte) und
+ * den Standard für speech. Pro Aufruf lässt sie sich per language überschreiben.
  */
-
-const INSTRUCTIONS = [
-  "Deutscher Adressabgleich für Telefonagenten.",
-  "",
-  "Ablauf im Gespräch:",
-  "1. resolve_postal_code mit den fünf Ziffern - erst die PLZ, dann alles andere.",
-  "2. resolve_address mit PLZ und dem, was beim Straßennamen verstanden wurde.",
-  "3. Bei status=ambiguous das Feld speech vorlesen, dann select_candidate mit der Wahl.",
-  "4. Bei needsHuman=true nichts raten: speech sagen und den Call übergeben.",
-  "5. Lehnt der Anrufer alle Vorschläge ab oder klappt es dreimal nicht: flag_for_human.",
-  "",
-  "Das Feld speech ist immer fertig formatiert. Wortwörtlich vorlesen, nicht umformulieren.",
-  "API-Dokumentation: Tool describe_api oder Resource geocoder://docs/api.",
-].join("\n");
 
 function jsonResult(payload: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }] };
@@ -47,115 +39,131 @@ async function guarded(action: () => Promise<unknown> | unknown) {
   }
 }
 
-export function createMcpServer(service: GeocoderService): McpServer {
-  const server = new McpServer({ name: "mcp-geocoder", version: "0.2.0" }, { instructions: INSTRUCTIONS });
+export function createMcpServer(service: GeocoderService, language: Language = service.language): McpServer {
+  const texts = mcpTexts(language);
+  const languageSchema = z
+    .enum(LANGUAGES as [Language, ...Language[]])
+    .optional()
+    .describe(texts.languageInput);
+  const server = new McpServer({ name: "mcp-geocoder", version: "0.2.0" }, { instructions: texts.instructions });
 
+  const postalCode = texts.tools.resolve_postal_code;
   server.registerTool(
     "resolve_postal_code",
     {
-      title: "Postleitzahl prüfen",
-      description:
-        "Prüft eine gesprochene Postleitzahl gegen das amtliche Verzeichnis und gibt die zugehörigen Orte zurück. Immer als erster Schritt der Adressaufnahme verwenden.",
+      title: postalCode.title,
+      description: postalCode.description,
       inputSchema: {
-        spokenPostalCode: z.string().describe('Transkript, z.B. "10115" oder "eins null eins eins fünf"'),
+        spokenPostalCode: z.string().describe(postalCode.inputs.spokenPostalCode),
+        language: languageSchema,
       },
     },
-    ({ spokenPostalCode }) => guarded(() => service.resolvePostalCode(spokenPostalCode)),
+    ({ spokenPostalCode, language: requested }) =>
+      guarded(() => service.resolvePostalCode(spokenPostalCode, requested ?? language)),
   );
 
+  const address = texts.tools.resolve_address;
   server.registerTool(
     "resolve_address",
     {
-      title: "Adresse abgleichen",
-      description:
-        "Gleicht einen verstandenen Straßennamen gegen das amtliche Straßenverzeichnis der Postleitzahl ab. Liefert bis zu drei Kandidaten mit Konfidenz, den Rückbestätigungssatz (speech) und needsHuman. Nie den Straßennamen ungeprüft übernehmen.",
+      title: address.title,
+      description: address.description,
       inputSchema: {
-        street: z.string().describe('Straßenname wie verstanden, Hausnummer darf enthalten sein: "Henrichweg 24"'),
-        postalCode: z.string().optional().describe("Bestätigte fünfstellige PLZ"),
-        houseNumber: z.string().optional().describe("Hausnummer, falls separat erfasst"),
-        locality: z.string().optional().describe("Ortsname, falls bekannt"),
+        street: z.string().describe(address.inputs.street),
+        postalCode: z.string().optional().describe(address.inputs.postalCode),
+        houseNumber: z.string().optional().describe(address.inputs.houseNumber),
+        locality: z.string().optional().describe(address.inputs.locality),
+        language: languageSchema,
       },
     },
-    (input) => guarded(() => service.resolveAddress(input)),
+    (input) => guarded(() => service.resolveAddress({ ...input, language: input.language ?? language })),
   );
 
+  const select = texts.tools.select_candidate;
   server.registerTool(
     "select_candidate",
     {
-      title: "Kandidat auswählen",
-      description:
-        "Nach einer Auswahlfrage: bestätigt einen der vorgelesenen Kandidaten und liefert die normalisierte Adresse plus Abschlusssatz. Erst danach gilt die Adresse als erfasst.",
+      title: select.title,
+      description: select.description,
       inputSchema: {
-        street: z.string().describe("Der gewählte amtliche Straßenname, exakt wie aus resolve_address"),
+        street: z.string().describe(select.inputs.street),
         postalCode: z.string(),
         locality: z.string(),
         houseNumber: z.string().optional(),
+        language: languageSchema,
       },
     },
-    (input) => guarded(() => service.selectCandidate(input)),
+    (input) => guarded(() => service.selectCandidate({ ...input, language: input.language ?? language })),
   );
 
+  const flag = texts.tools.flag_for_human;
   server.registerTool(
     "flag_for_human",
     {
-      title: "An Menschen übergeben",
-      description:
-        "Markiert den Call als unsicher und übergibt an einen Menschen. Aufrufen, sobald der Anrufer keinen Vorschlag bestätigt, die Adresse zum dritten Mal nicht ankommt oder die Datenquellen ausgefallen sind. Nie stattdessen den wahrscheinlichsten Kandidaten übernehmen.",
+      title: flag.title,
+      description: flag.description,
       inputSchema: {
-        reason: z.string().describe('Warum die Erfassung gescheitert ist, z.B. "alle drei Vorschläge abgelehnt"'),
+        reason: z.string().describe(flag.inputs.reason),
         heardStreet: z.string().optional(),
         heardPostalCode: z.string().optional(),
         attempts: z.number().int().optional(),
+        language: languageSchema,
       },
     },
-    (input) => guarded(() => service.flagForHuman(input)),
+    ({ language: requested, ...entry }) => guarded(() => service.flagForHuman(entry, requested ?? language)),
   );
 
+  const keyterms = texts.tools.generate_keyterms;
   server.registerTool(
     "generate_keyterms",
     {
-      title: "Keyterm-Liste erzeugen",
-      description:
-        "Erzeugt aus dem Einzugsgebiet eine nach Fehleranfälligkeit priorisierte Keyterm-Liste für den Deepgram-Transcriber, inklusive fertigem Konfigurationsblock. Einmalig beim Einrichten, nicht im Gespräch.",
+      title: keyterms.title,
+      description: keyterms.description,
       inputSchema: {
-        postalCodes: z.array(z.string()).optional().describe("Leer = SERVICE_AREA_POSTAL_CODES"),
+        postalCodes: z.array(z.string()).optional().describe(keyterms.inputs.postalCodes),
         limit: z.number().int().min(1).max(100).optional(),
       },
     },
     ({ postalCodes, limit }) => guarded(() => service.buildKeyterms(postalCodes, limit)),
   );
 
+  const describe = texts.tools.describe_api;
   server.registerTool(
     "describe_api",
     {
-      title: "API-Dokumentation",
-      description:
-        "Liefert die Dokumentation dieses Servers: Gesprächsablauf, Antwortformat, Schwellwerte und die OpenAPI-Beschreibung der gleichwertigen REST-API.",
+      title: describe.title,
+      description: describe.description,
       inputSchema: {
-        format: z.enum(["markdown", "openapi"]).optional().describe("markdown (Standard) oder openapi (JSON)"),
+        format: z.enum(["markdown", "openapi"]).optional().describe(describe.inputs.format),
       },
     },
     ({ format }) =>
       format === "openapi"
-        ? jsonResult(openApiDocument)
-        : { content: [{ type: "text" as const, text: apiGuideMarkdown(service.thresholds) }] },
+        ? jsonResult(buildOpenApiDocument(language))
+        : { content: [{ type: "text" as const, text: apiGuideMarkdown(service.thresholds, language) }] },
   );
 
   server.registerResource(
     "api-guide",
     "geocoder://docs/api",
-    { title: "API-Leitfaden", description: "Gesprächsablauf, Antwortformat, Schwellwerte", mimeType: "text/markdown" },
+    { ...texts.resources.apiGuide, mimeType: "text/markdown" },
     async (uri) => ({
-      contents: [{ uri: uri.href, mimeType: "text/markdown", text: apiGuideMarkdown(service.thresholds) }],
+      contents: [{ uri: uri.href, mimeType: "text/markdown", text: apiGuideMarkdown(service.thresholds, language) }],
     }),
   );
 
   server.registerResource(
     "openapi",
     "geocoder://docs/openapi.json",
-    { title: "OpenAPI 3.1", description: "REST-API, identisch zu den MCP-Tools", mimeType: "application/json" },
+    { ...texts.resources.openapi, mimeType: "application/json" },
     async (uri) => ({
-      contents: [{ uri: uri.href, mimeType: "application/json", text: JSON.stringify(openApiDocument, null, 2) }],
+      contents: [
+        {
+          uri: uri.href,
+          mimeType: "application/json",
+          text: JSON.stringify(buildOpenApiDocument(language), null, 2),
+        },
+      ],
     }),
   );
 

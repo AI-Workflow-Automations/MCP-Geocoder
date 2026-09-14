@@ -1,7 +1,9 @@
 import { extractPostalCode } from "../domain/normalization.js";
 import type { StreetDirectory } from "../domain/ports.js";
-import type { PostalCodeResolution } from "../domain/types.js";
-import { phrases, speakChoices, speakPostalCode } from "../speech/speech-formatter.js";
+import { REASONS } from "../domain/reasons.js";
+import type { Language, PostalCodeResolution } from "../domain/types.js";
+import { DEFAULT_LANGUAGE } from "../speech/language.js";
+import { phrasesFor, speakChoices, speakPostalCode } from "../speech/speech-formatter.js";
 
 /**
  * PLZ-First-Dialog: erst die fünf Ziffern, dann alles andere.
@@ -13,7 +15,9 @@ import { phrases, speakChoices, speakPostalCode } from "../speech/speech-formatt
 export class PostalCodeResolver {
   constructor(private readonly directory: StreetDirectory) {}
 
-  async resolve(spoken: string): Promise<PostalCodeResolution> {
+  async resolve(spoken: string, language: Language = DEFAULT_LANGUAGE): Promise<PostalCodeResolution> {
+    const phrases = phrasesFor(language);
+    const reasons = REASONS[language];
     const postalCode = extractPostalCode(spoken);
     if (!postalCode) {
       return {
@@ -21,7 +25,7 @@ export class PostalCodeResolver {
         needsHuman: false,
         localities: [],
         speech: phrases.postalCodeNotUnderstood,
-        reason: "Keine fünfstellige Postleitzahl im Transkript.",
+        reason: reasons.postalCodeMissing,
       };
     }
 
@@ -35,7 +39,7 @@ export class PostalCodeResolver {
         postalCode,
         localities,
         speech: phrases.postalCodeUnknown(spokenCode),
-        reason: `Postleitzahl ${postalCode} nicht im Verzeichnis.`,
+        reason: reasons.postalCodeUnknown(postalCode),
       };
     }
 
@@ -46,17 +50,21 @@ export class PostalCodeResolver {
         postalCode,
         localities,
         speech: phrases.postalCodeConfirm(spokenCode, localities[0].locality),
-        reason: `Postleitzahl ${postalCode} eindeutig: ${localities[0].locality}.`,
+        reason: reasons.postalCodeUnique(postalCode, localities[0].locality),
       };
     }
 
+    const choices = speakChoices(
+      localities.slice(0, 3).map((l) => l.locality),
+      language,
+    );
     return {
       status: "ambiguous",
       needsHuman: false,
       postalCode,
       localities,
-      speech: phrases.postalCodeChoose(spokenCode, speakChoices(localities.slice(0, 3).map((l) => l.locality))),
-      reason: `Postleitzahl ${postalCode} gehört zu ${localities.length} Orten.`,
+      speech: phrases.postalCodeChoose(spokenCode, choices),
+      reason: reasons.postalCodeMultiple(postalCode, localities.length),
     };
   }
 }

@@ -19,5 +19,6 @@ export function composeGeocoderService(config: AppConfig): GeocoderService {
     escalations: new StderrEscalationLog(),
     thresholds: config.thresholds,
     serviceAreaPostalCodes: config.serviceAreaPostalCodes,
+    language: config.language,
   });
 }

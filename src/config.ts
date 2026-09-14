@@ -1,4 +1,6 @@
 import { DEFAULT_THRESHOLDS, type MatchingThresholds } from "./domain/scoring.js";
+import type { Language } from "./domain/types.js";
+import { DEFAULT_LANGUAGE, parseLanguage } from "./speech/language.js";
 
 /**
  * Konfiguration aus der Umgebung. Einzige Stelle, die process.env liest.
@@ -45,6 +47,8 @@ export interface AppConfig {
   webEnabled: boolean;
   /** Öffentliche Basis-URL für Canonical, JSON-LD, llms.txt. Leer = aus dem Request ableiten. */
   publicUrl?: string;
+  /** Standardsprache für speech, reason und die Prompts unter der Haube (MCP-Instructions, Tool-Texte, Doku). */
+  language: Language;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -69,5 +73,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     authToken: env.MCP_AUTH_TOKEN ?? "",
     webEnabled: env.WEB_ENABLED !== "false",
     publicUrl: env.PUBLIC_URL?.trim() || undefined,
+    language: parseLanguage(env.LANGUAGE, DEFAULT_LANGUAGE),
   };
 }

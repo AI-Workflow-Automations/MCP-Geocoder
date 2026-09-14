@@ -1,7 +1,8 @@
 import { normalizeStreetName, significantTokens, splitStreetName } from "./normalization.js";
 import { encodePhrase } from "./phonetics.js";
+import { REASONS } from "./reasons.js";
 import { editSimilarity, fuzzyTokenSimilarity, jaroWinkler } from "./similarity.js";
-import type { ScoreBreakdown, StreetCandidate } from "./types.js";
+import type { Language, ScoreBreakdown, StreetCandidate } from "./types.js";
 
 /**
  * Schwellwerte und Gewichte des Abgleichs. Werden injiziert, nicht importiert -
@@ -44,7 +45,7 @@ const WEIGHTS = { lexical: 0.45, phonetic: 0.35, token: 0.1, streetType: 0.1 } a
  */
 const STREET_TYPE_CONFLICT_CAP = 0.84;
 
-export function scoreStreetName(heard: string, candidate: string): ScoreBreakdown {
+export function scoreStreetName(heard: string, candidate: string, language: Language = "de"): ScoreBreakdown {
   const heardParts = splitStreetName(heard);
   const candidateParts = splitStreetName(candidate);
 
@@ -65,7 +66,7 @@ export function scoreStreetName(heard: string, candidate: string): ScoreBreakdow
   let cappedBy: string | undefined;
   if (typesConflict && total > STREET_TYPE_CONFLICT_CAP) {
     total = STREET_TYPE_CONFLICT_CAP;
-    cappedBy = `Grundwort widerspricht sich (${heardParts.type} vs. ${candidateParts.type})`;
+    cappedBy = REASONS[language].streetTypeConflict(heardParts.type ?? "", candidateParts.type ?? "");
   }
 
   return { lexical, phonetic, token, streetType, total: roundScore(total), cappedBy };

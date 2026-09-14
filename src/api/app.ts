@@ -8,9 +8,11 @@ import express, { type NextFunction, type Request, type Response } from "express
 
 import type { GeocoderService } from "../application/geocoder-service.js";
 import type { AppConfig } from "../config.js";
+import type { Language } from "../domain/types.js";
 import { createMcpServer } from "../mcp/server.js";
+import { LANGUAGES } from "../speech/language.js";
 import { renderIndexPage, renderLlmsTxt, resolveBaseUrl } from "./index-page.js";
-import { openApiDocument } from "./openapi.js";
+import { buildOpenApiDocument } from "./openapi.js";
 
 /**
  * HTTP-Anwendung: MCP-Transport, REST-API, Demo-Oberfläche.
@@ -26,12 +28,14 @@ export function createApp(service: GeocoderService, config: AppConfig): express.
   app.disable("x-powered-by");
   app.use(express.json({ limit: "1mb" }));
   app.use(bearerAuth(config.authToken));
+  const openApiDocument = buildOpenApiDocument(config.language);
 
   app.get(
     "/health",
     asyncRoute(async () => ({
       ok: true,
       service: "mcp-geocoder",
+      language: config.language,
       providers: await probeProviders(config),
       thresholds: service.thresholds,
       serviceArea: service.serviceArea,
@@ -42,8 +46,8 @@ export function createApp(service: GeocoderService, config: AppConfig): express.
     res.json(openApiDocument);
   });
 
-  mountRestApi(app, service);
-  mountMcp(app, service);
+  mountRestApi(app, service, config.language);
+  mountMcp(app, service, config.language);
 
   if (config.webEnabled) {
     mountWeb(app, service, config);
@@ -85,12 +89,13 @@ function mountWeb(app: express.Express, service: GeocoderService, config: AppCon
 }
 
 /** REST-Routen. Ein Endpunkt pro Anwendungsfall, 1:1 zu den MCP-Tools. */
-function mountRestApi(app: express.Express, service: GeocoderService): void {
+function mountRestApi(app: express.Express, service: GeocoderService, language: Language): void {
+  const requireString = (body: unknown, key: string) => requireStringIn(body, key, language);
   app.post(
     "/api/postal-code",
     asyncRoute((req) => {
       const spoken = requireString(req.body, "spoken");
-      return service.resolvePostalCode(spoken);
+      return service.resolvePostalCode(spoken, optionalLanguage(req.body));
     }),
   );
 
@@ -103,6 +108,7 @@ function mountRestApi(app: express.Express, service: GeocoderService): void {
         postalCode: optionalString(req.body, "postalCode"),
         houseNumber: optionalString(req.body, "houseNumber"),
         locality: optionalString(req.body, "locality"),
+        language: optionalLanguage(req.body),
       });
     }),
   );
@@ -115,6 +121,7 @@ function mountRestApi(app: express.Express, service: GeocoderService): void {
         postalCode: requireString(req.body, "postalCode"),
         locality: requireString(req.body, "locality"),
         houseNumber: optionalString(req.body, "houseNumber"),
+        language: optionalLanguage(req.body),
       }),
     ),
   );
@@ -122,12 +129,15 @@ function mountRestApi(app: express.Express, service: GeocoderService): void {
   app.post(
     "/api/escalate",
     asyncRoute((req) =>
-      service.flagForHuman({
-        reason: requireString(req.body, "reason"),
-        heardStreet: optionalString(req.body, "heardStreet"),
-        heardPostalCode: optionalString(req.body, "heardPostalCode"),
-        attempts: typeof req.body?.attempts === "number" ? req.body.attempts : undefined,
-      }),
+      service.flagForHuman(
+        {
+          reason: requireString(req.body, "reason"),
+          heardStreet: optionalString(req.body, "heardStreet"),
+          heardPostalCode: optionalString(req.body, "heardPostalCode"),
+          attempts: typeof req.body?.attempts === "number" ? req.body.attempts : undefined,
+        },
+        optionalLanguage(req.body),
+      ),
     ),
   );
 
@@ -145,7 +155,7 @@ function mountRestApi(app: express.Express, service: GeocoderService): void {
  * MCP über Streamable HTTP. Ein Transport pro Session - eine Telefonleitung
  * ist eine Session.
  */
-function mountMcp(app: express.Express, service: GeocoderService): void {
+function mountMcp(app: express.Express, service: GeocoderService, language: Language): void {
   const transports = new Map<string, StreamableHTTPServerTransport>();
 
   app.post("/mcp", async (req, res, next) => {
@@ -171,7 +181,7 @@ function mountMcp(app: express.Express, service: GeocoderService): void {
         created.onclose = () => {
           if (created.sessionId) transports.delete(created.sessionId);
         };
-        await createMcpServer(service).connect(created);
+        await createMcpServer(service, language).connect(created);
         transport = created;
       }
 
@@ -209,12 +219,22 @@ function bearerAuth(token: string) {
 
 class BadRequestError extends Error {}
 
-function requireString(body: unknown, key: string): string {
+function requireStringIn(body: unknown, key: string, language: Language): string {
   const value = (body as Record<string, unknown> | undefined)?.[key];
   if (typeof value !== "string" || value.trim() === "") {
-    throw new BadRequestError(`Feld "${key}" fehlt oder ist leer.`);
+    throw new BadRequestError(
+      language === "en" ? `Field "${key}" is missing or empty.` : `Feld "${key}" fehlt oder ist leer.`,
+    );
   }
   return value;
+}
+
+/** Unbekannte oder fehlende Sprache => undefined, die Fassade nimmt dann den Server-Standard. */
+function optionalLanguage(body: unknown): Language | undefined {
+  const value = (body as Record<string, unknown> | undefined)?.language;
+  return typeof value === "string" && (LANGUAGES as readonly string[]).includes(value)
+    ? (value as Language)
+    : undefined;
 }
 
 function optionalString(body: unknown, key: string): string | undefined {
