@@ -5,17 +5,19 @@ import { DEFAULT_THRESHOLDS, type MatchingThresholds } from "./domain/scoring.js
  * Alles andere bekommt fertige Werte injiziert.
  */
 
-function readNumber(name: string, fallback: number): number {
-  const raw = process.env[name];
+type Env = NodeJS.ProcessEnv;
+
+function readNumber(env: Env, name: string, fallback: number): number {
+  const raw = env[name];
   if (!raw) return fallback;
   const parsed = Number(raw);
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function readList(name: string): string[] {
+function readList(env: Env, name: string): string[] {
   return [
     ...new Set(
-      (process.env[name] ?? "")
+      (env[name] ?? "")
         .split(",")
         .map((v) => v.trim())
         .filter(Boolean),
@@ -23,8 +25,8 @@ function readList(name: string): string[] {
   ];
 }
 
-function readOptionalNumber(name: string): number | undefined {
-  return process.env[name] ? readNumber(name, 0) : undefined;
+function readOptionalNumber(env: Env, name: string): number | undefined {
+  return env[name] ? readNumber(env, name, 0) : undefined;
 }
 
 export interface AppConfig {
@@ -41,28 +43,31 @@ export interface AppConfig {
   authToken: string;
   /** Demo-Oberfläche und REST-API ausliefern */
   webEnabled: boolean;
+  /** Öffentliche Basis-URL für Canonical, JSON-LD, llms.txt. Leer = aus dem Request ableiten. */
+  publicUrl?: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
-  const lat = readOptionalNumber("SERVICE_AREA_LAT");
-  const lon = readOptionalNumber("SERVICE_AREA_LON");
+  const lat = readOptionalNumber(env, "SERVICE_AREA_LAT");
+  const lon = readOptionalNumber(env, "SERVICE_AREA_LON");
   const photonBaseUrl = env.PHOTON_BASE_URL ?? "https://photon.komoot.io";
   return {
     openPlzBaseUrl: env.OPENPLZ_BASE_URL ?? "https://openplzapi.org",
     photonBaseUrl,
     photonEnabled: photonBaseUrl.length > 0 && env.PHOTON_ENABLED !== "false",
-    serviceAreaPostalCodes: readList("SERVICE_AREA_POSTAL_CODES"),
+    serviceAreaPostalCodes: readList(env, "SERVICE_AREA_POSTAL_CODES"),
     serviceAreaBias: lat !== undefined && lon !== undefined ? { lat, lon } : undefined,
     thresholds: {
-      autoAccept: readNumber("CONFIDENCE_AUTO", DEFAULT_THRESHOLDS.autoAccept),
-      ambiguous: readNumber("CONFIDENCE_AMBIGUOUS", DEFAULT_THRESHOLDS.ambiguous),
-      minimumMargin: readNumber("MINIMUM_MARGIN", DEFAULT_THRESHOLDS.minimumMargin),
-      suggestionBand: readNumber("SUGGESTION_BAND", DEFAULT_THRESHOLDS.suggestionBand),
+      autoAccept: readNumber(env, "CONFIDENCE_AUTO", DEFAULT_THRESHOLDS.autoAccept),
+      ambiguous: readNumber(env, "CONFIDENCE_AMBIGUOUS", DEFAULT_THRESHOLDS.ambiguous),
+      minimumMargin: readNumber(env, "MINIMUM_MARGIN", DEFAULT_THRESHOLDS.minimumMargin),
+      suggestionBand: readNumber(env, "SUGGESTION_BAND", DEFAULT_THRESHOLDS.suggestionBand),
     },
-    cacheTtlSeconds: readNumber("CACHE_TTL_SECONDS", 86_400),
-    requestTimeoutMs: readNumber("REQUEST_TIMEOUT_MS", 4000),
-    httpPort: readNumber("HTTP_PORT", 8080),
+    cacheTtlSeconds: readNumber(env, "CACHE_TTL_SECONDS", 86_400),
+    requestTimeoutMs: readNumber(env, "REQUEST_TIMEOUT_MS", 4000),
+    httpPort: readNumber(env, "HTTP_PORT", 8080),
     authToken: env.MCP_AUTH_TOKEN ?? "",
     webEnabled: env.WEB_ENABLED !== "false",
+    publicUrl: env.PUBLIC_URL?.trim() || undefined,
   };
 }

@@ -3,7 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MCP-Geocoder – Demo</title>
+  <title>MCP-Geocoder – Fault-tolerant German address matching for phone agents</title>
+  <meta name="description" content="Resolves spoken German postal codes and street names against official data. Top-3 candidates, confidence score, escalation flag and a TTS-ready confirmation – as MCP server and REST API.">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#2f5aff">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="favicon.svg">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="MCP-Geocoder">
+  <meta property="og:title" content="MCP-Geocoder – address matching for phone agents">
+  <meta property="og:description" content="Spoken German addresses, resolved against official data. Confidence, candidates, escalation. MCP server and REST API.">
+  <meta property="og:locale" content="en_US">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="MCP-Geocoder – address matching for phone agents">
+  <meta name="twitter:description" content="Spoken German addresses, resolved against official data. Confidence, candidates, escalation. MCP server and REST API.">
+  <!-- Vom Server gefüllt: canonical, og:url, geo.*, JSON-LD (siehe src/api/index-page.ts) -->
+  <!-- @dynamic-head -->
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -12,11 +27,11 @@
       <span class="brand-mark">◎</span>
       <div>
         <h1>MCP-Geocoder</h1>
-        <p class="tagline">Fault-tolerant address capture for phone agents – demo</p>
+        <p class="tagline">Fault-tolerant address capture for phone agents</p>
       </div>
     </div>
     <div class="tabs" role="tablist">
-      <button type="button" class="tab is-active" role="tab" data-tab="demo">Demo</button>
+      <button type="button" class="tab is-active" role="tab" data-tab="demo">Example</button>
       <button type="button" class="tab" role="tab" data-tab="cases">Hard cases</button>
       <button type="button" class="tab" role="tab" data-tab="api">API</button>
     </div>
@@ -126,10 +141,6 @@
       </div>
     </section>
   </main>
-
-  <footer>
-    <span>MCP-Geocoder · demo UI · data: OpenPLZ API, Photon (OSM)</span>
-  </footer>
 
   <script src="app.js"></script>
 </body>

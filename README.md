@@ -52,6 +52,11 @@ docker run --rm -p 8080:8080 ghcr.io/ai-workflow-automations/mcp-geocoder   # de
 | `/openapi.json` | OpenAPI 3.1 — the single source of API documentation |
 | `/mcp` | MCP Streamable HTTP — this is where the phone agent connects |
 | `/health` | Data sources, thresholds, service area |
+| `/llms.txt` | [llms.txt](https://llmstxt.org) overview for AI crawlers, links absolute |
+
+The demo page ships with favicon, meta description, Open Graph, `geo.*` tags for the service
+area and a Schema.org `WebApplication` JSON-LD. Canonical URL, geo position and JSON-LD are
+rendered per deployment from the configuration — see `PUBLIC_URL` under [Configuration](#configuration).
 
 ### Claude Code in 30 seconds
 
@@ -298,6 +303,8 @@ All values in [`.env.example`](.env.example). The important ones:
 | `PHOTON_ENABLED` | true | `false` = official directory only |
 | `MCP_AUTH_TOKEN` | — | bearer token for HTTP; `/health` stays open |
 | `WEB_ENABLED` | true | `false` = only `/mcp` and `/health` |
+| `PUBLIC_URL` | from request | base URL for canonical, JSON-LD and `llms.txt` behind a reverse proxy; falls back to `X-Forwarded-*`/`Host` |
+| `SERVICE_AREA_LAT` / `_LON` | — | Photon bias point; also emitted as `geo.position`/`ICBM` meta and `geoMidpoint` in JSON-LD |
 
 **The thresholds are starting values, not validated numbers.** Procedure: run 30 real
 calls, evaluate `reason` and `confidence` from the logs, adjust. The log lines from

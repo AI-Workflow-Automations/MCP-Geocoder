@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -8,6 +9,7 @@ import express, { type NextFunction, type Request, type Response } from "express
 import type { GeocoderService } from "../application/geocoder-service.js";
 import type { AppConfig } from "../config.js";
 import { createMcpServer } from "../mcp/server.js";
+import { renderIndexPage, renderLlmsTxt, resolveBaseUrl } from "./index-page.js";
 import { openApiDocument } from "./openapi.js";
 
 /**
@@ -44,11 +46,42 @@ export function createApp(service: GeocoderService, config: AppConfig): express.
   mountMcp(app, service);
 
   if (config.webEnabled) {
-    app.use(express.static(WEB_ROOT, { index: "index.html", extensions: ["html"] }));
+    mountWeb(app, service, config);
   }
 
   app.use(errorHandler);
   return app;
+}
+
+/**
+ * Demo-Oberfläche. Startseite und llms.txt werden gerendert, weil Canonical-URL,
+ * Geo-Meta und JSON-LD vom Deployment abhängen; der Rest kommt statisch aus web/.
+ */
+function mountWeb(app: express.Express, service: GeocoderService, config: AppConfig): void {
+  const indexTemplate = readFileSync(path.join(WEB_ROOT, "index.html"), "utf8");
+  const llmsTemplate = readFileSync(path.join(WEB_ROOT, "llms.txt"), "utf8");
+  const baseUrlOf = (req: Request) =>
+    resolveBaseUrl(config.publicUrl, {
+      forwardedProto: req.get("x-forwarded-proto"),
+      forwardedHost: req.get("x-forwarded-host"),
+      host: req.get("host"),
+      protocol: req.protocol,
+    });
+
+  app.get(["/", "/index.html"], (req, res) => {
+    const html = renderIndexPage(indexTemplate, {
+      baseUrl: baseUrlOf(req),
+      serviceAreaPostalCodes: service.serviceArea,
+      serviceAreaBias: config.serviceAreaBias,
+    });
+    res.type("html").send(html);
+  });
+
+  app.get("/llms.txt", (req, res) => {
+    res.type("text/plain; charset=utf-8").send(renderLlmsTxt(llmsTemplate, baseUrlOf(req)));
+  });
+
+  app.use(express.static(WEB_ROOT, { index: false, extensions: ["html"] }));
 }
 
 /** REST-Routen. Ein Endpunkt pro Anwendungsfall, 1:1 zu den MCP-Tools. */

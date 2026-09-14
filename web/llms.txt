@@ -1,0 +1,20 @@
+# MCP-Geocoder
+
+> Fault-tolerant German address matching for phone agents. Resolves spoken postal codes and street names against official data (OpenPLZ, optionally Photon) and returns the top-3 candidates with a confidence score, an escalation flag (`needsHuman`) and a TTS-ready confirmation sentence (`speech`). Available as MCP server (Streamable HTTP at `/mcp`, or stdio) and as REST API.
+
+Conversation flow: `resolve_postal_code` (five digits first) → `resolve_address` (postal code + heard street) → on `status=ambiguous` read `speech` and call `select_candidate` → on `needsHuman=true` stop guessing and hand over; after three failed attempts call `flag_for_human`. The `speech` field is always final wording – read it verbatim.
+
+## API
+
+- [OpenAPI 3.1 document]({{BASE_URL}}/openapi.json): the complete REST contract, single source of API documentation
+- [Health]({{BASE_URL}}/health): data sources, thresholds, configured service area
+- [MCP endpoint]({{BASE_URL}}/mcp): Streamable HTTP; send `initialize` first, then use the `mcp-session-id` header
+
+## Source
+
+- [Repository](https://github.com/AI-Workflow-Automations/MCP-Geocoder): README with architecture, decision logic, hard cases, Vapi integration
+- [Container image](https://github.com/AI-Workflow-Automations/MCP-Geocoder/pkgs/container/mcp-geocoder): `docker run -i --rm ghcr.io/ai-workflow-automations/mcp-geocoder stdio`
+
+## Optional
+
+- [Demo UI]({{BASE_URL}}/): interactive matching and the hard-case gallery

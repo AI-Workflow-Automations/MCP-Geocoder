@@ -19,6 +19,38 @@ async function startApp(env: Record<string, string> = {}) {
   return { base: `http://127.0.0.1:${port}`, close: () => new Promise<void>((r) => server.close(() => r())) };
 }
 
+describe("Weboberfläche", () => {
+  it("rendert die Startseite mit Canonical-URL, Geo-Meta und JSON-LD", async () => {
+    const { base, close } = await startApp({ SERVICE_AREA_LAT: "52.53", SERVICE_AREA_LON: "13.38" });
+    try {
+      const response = await fetch(`${base}/`);
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toContain("text/html");
+      const html = await response.text();
+      expect(html).toContain(`<link rel="canonical" href="${base}/">`);
+      expect(html).toContain('<meta name="geo.position" content="52.53;13.38">');
+      expect(html).toContain('<script type="application/ld+json">');
+      expect(html).toContain('<link rel="icon" href="favicon.svg"');
+      expect(html).not.toContain("@dynamic-head");
+    } finally {
+      await close();
+    }
+  });
+
+  it("liefert llms.txt mit absoluten Links und die statischen Dateien", async () => {
+    const { base, close } = await startApp({ PUBLIC_URL: "https://geocoder.example.de/" });
+    try {
+      const llms = await fetch(`${base}/llms.txt`);
+      expect(llms.status).toBe(200);
+      expect(await llms.text()).toContain("(https://geocoder.example.de/openapi.json)");
+      expect((await fetch(`${base}/favicon.svg`)).headers.get("content-type")).toContain("image/svg+xml");
+      expect((await fetch(`${base}/robots.txt`)).status).toBe(200);
+    } finally {
+      await close();
+    }
+  });
+});
+
 describe("REST-API", () => {
   it("gleicht eine Adresse ab", async () => {
     const { base, close } = await startApp();
