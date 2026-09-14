@@ -62,6 +62,9 @@ claude mcp add mcp-geocoder -- docker run -i --rm ghcr.io/ai-workflow-automation
 ```
 
 Restrict to your service area with `-e SERVICE_AREA_POSTAL_CODES=10115,10117,10119` before the image name.
+If `docker pull` answers `unauthorized`, the package is still private: log in with a token that has
+`read:packages` (`echo $TOKEN | docker login ghcr.io -u <user> --password-stdin`), or make the package
+public under the organization's package settings.
 
 Or run it as a service once and connect over HTTP (also works for Vapi, n8n, etc.):
 
@@ -73,14 +76,26 @@ claude mcp add --transport http mcp-geocoder http://localhost:8080/mcp
 With `MCP_AUTH_TOKEN` set, add `--header "Authorization: Bearer <token>"` to the second command.
 Use `--scope user` to make the server available in every project.
 
-Without Docker, with Bun installed: clone, install, start Claude Code in the folder.
-[`.mcp.json`](.mcp.json) registers the server for that project, no `claude mcp add` needed.
+Without Docker: clone, install, start Claude Code in the folder. [`.mcp.json`](.mcp.json)
+registers the server for that project, no `claude mcp add` needed. Requires
+[Bun](https://bun.sh) and pnpm on the machine — `.mcp.json` launches `bun run src/index.ts`.
 
 ```bash
+curl -fsSL https://bun.sh/install | bash                  # once, if `which bun` is empty
 git clone https://github.com/AI-Workflow-Automations/MCP-Geocoder && cd MCP-Geocoder && pnpm install
 claude                                                    # asks once, then the server starts on demand
 claude mcp add --scope user mcp-geocoder -- bun run "$PWD/src/index.ts"   # optional: every project
 ```
+
+**`/mcp` shows `Failed to reconnect to mcp-geocoder: CONNECTION_CLOSED`?** The launch command exited
+before speaking MCP. Run it by hand — the reason is in the first line of output:
+
+```bash
+bun run src/index.ts                                          # .mcp.json path: "command not found" → install Bun
+docker run -i --rm ghcr.io/ai-workflow-automations/mcp-geocoder stdio   # Docker path: "unauthorized" → see above
+```
+
+A healthy start prints `[mcp-geocoder] stdio-Transport bereit` on stderr and then waits for input.
 
 Claude Desktop (`claude_desktop_config.json`):
 
