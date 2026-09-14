@@ -35,7 +35,7 @@ This server turns that around: a hard failure becomes an ordinary follow-up ques
 ```bash
 pnpm install
 cp .env.example .env          # set service area and thresholds
-pnpm check                    # typecheck + lint + slop-check + test (offline, fixtures only)
+pnpm check                    # typecheck + lint + test (offline, fixtures only)
 pnpm serve                    # http://localhost:8080
 ```
 
@@ -53,10 +53,47 @@ docker compose up --build     # demo at http://localhost:8080
 | `/mcp` | MCP Streamable HTTP — this is where the phone agent connects |
 | `/health` | Data sources, thresholds, service area |
 
-For Claude Code / Claude Desktop (stdio):
+### Claude Code in 30 seconds
+
+Prebuilt image on GHCR, no clone needed. stdio via Docker:
+
+```bash
+claude mcp add mcp-geocoder -- docker run -i --rm \
+  -e SERVICE_AREA_POSTAL_CODES=10115,10117,10119 \
+  ghcr.io/ai-workflow-automations/mcp-geocoder:latest bun run src/index.ts
+```
+
+Or run it as a service once and connect over HTTP (also works for Vapi, n8n, etc.):
+
+```bash
+docker run -d --name geocoder -p 8080:8080 \
+  -e SERVICE_AREA_POSTAL_CODES=10115,10117,10119 \
+  ghcr.io/ai-workflow-automations/mcp-geocoder:latest
+claude mcp add --transport http mcp-geocoder http://localhost:8080/mcp
+```
+
+With `MCP_AUTH_TOKEN` set, add `--header "Authorization: Bearer <token>"` to the second command.
+Use `--scope user` to make the server available in every project.
+
+Inside a clone, [`.mcp.json`](.mcp.json) registers the server automatically — Claude Code
+asks once, then `bun run src/index.ts` starts on demand. Without Docker:
 
 ```bash
 claude mcp add mcp-geocoder -- bun run /path/to/MCP-Geocoder/src/index.ts
+```
+
+Claude Desktop (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "mcp-geocoder": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "-e", "SERVICE_AREA_POSTAL_CODES=10115,10117,10119",
+               "ghcr.io/ai-workflow-automations/mcp-geocoder:latest", "bun", "run", "src/index.ts"]
+    }
+  }
+}
 ```
 
 ---
@@ -258,9 +295,23 @@ metric: 95 % correctly captured addresses with 100 % read-back.
 ## Docker
 
 ```bash
-docker compose up --build                 # server + demo
+docker compose pull && docker compose up  # prebuilt image from GHCR
+docker compose up --build                 # build locally instead
 docker compose --profile photon up        # plus a self-hosted Photon instance
 ```
+
+### Image
+
+`ghcr.io/ai-workflow-automations/mcp-geocoder`, built for `linux/amd64` and `linux/arm64`.
+
+| Tag | Meaning |
+|---|---|
+| `latest`, `main` | current `main` after CI passed |
+| `1.2.3`, `1.2`, `1` | release tags `v1.2.3` |
+| `sha-<short>` | exact commit |
+
+Default command is the HTTP server (`src/serve.ts`, port 8080). Append `bun run src/index.ts`
+for stdio. Configuration is entirely via environment variables, see [Configuration](#configuration).
 
 The image builds in two stages: `node:22-alpine` resolves dependencies with pnpm
 (`node-linker=hoisted`, so `node_modules` is flat), `oven/bun:1-alpine` runs it. No build
@@ -275,24 +326,23 @@ The public Photon instance does not carry telephony load. For production enable 
 ## Quality gates
 
 ```bash
-pnpm check        # typecheck + lint + slop + test, in that order
+pnpm check        # typecheck + lint + test, in that order
 ```
 
 | Step | Tool | What it catches |
 |---|---|---|
 | `pnpm typecheck` | tsc | type errors |
 | `pnpm lint` | [Biome](https://biomejs.dev) — [`biome.json`](biome.json) | unused code, `any`, cognitive complexity > 15, non-null assertions, a11y in the web UI, formatting |
-| `pnpm slop` | [`scripts/slop-check.ts`](scripts/slop-check.ts) | AI marketing filler (EN/DE), chat artifacts ("Here's the code"), placeholders, `console.log`/`debugger`/`@ts-ignore` leftovers, comments that restate the code |
 | `pnpm test` | bun test | behaviour, including the hard cases |
 
-`pnpm lint:fix` applies Biome's safe fixes. A slop finding on a legitimate line is
-suppressed with `slop-ok` in that line.
+`pnpm lint:fix` applies Biome's safe fixes.
 
 ### CI
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs the four gates above (pnpm + Bun),
-then a Docker build with a smoke test against `/health`. Runs on push to `main`, on every
-pull request, and manually.
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs the three gates above (pnpm + Bun),
+then a Docker build with a smoke test against `/health`. Runs on push to `main`, on release tags
+`v*`, on every pull request, and manually. On push (not on pull requests) the `publish` job then
+pushes the multi-arch image to GHCR — see [Image](#image) for the tag scheme.
 
 ---
 

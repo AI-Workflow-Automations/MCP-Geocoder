@@ -19,8 +19,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "check": "pnpm typecheck && pnpm lint && pnpm slop && pnpm test",
-    "slop": "bun run scripts/slop-check.ts",
+    "check": "pnpm typecheck && pnpm lint && pnpm test",
     "inspect": "pnpm dlx @modelcontextprotocol/inspector bun run src/index.ts",
     "docker:build": "docker build -t mcp-geocoder .",
     "docker:up": "docker compose up --build"

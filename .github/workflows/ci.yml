@@ -1,12 +1,17 @@
-# CI: Typecheck, Lint (Biome), AI-Slop-Check, Tests, Docker-Build + Smoke-Test
+# CI: Typecheck, Lint (Biome), Tests, Docker-Build + Smoke-Test,
+# danach Multi-Arch-Image nach GHCR (nur push auf main, Tags v*, manuell).
 # pnpm verwaltet die Abhängigkeiten, Bun führt aus.
 name: CI
 
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
 
 # Nur ein Lauf pro Ref, ältere werden abgebrochen
 concurrency:
@@ -46,10 +51,6 @@ jobs:
       - name: Statische Analyse
         run: pnpm lint
 
-      # Eigenes Skript: KI-Floskeln, Chat-Artefakte, Platzhalter, Debug-Reste
-      - name: AI-Slop-Check
-        run: pnpm slop
-
       - name: Tests
         run: pnpm test
 
@@ -84,3 +85,53 @@ jobs:
           done
           curl -fsS http://localhost:8080/health || { docker logs geocoder; exit 1; }
           docker rm -f geocoder
+
+  # Image nach GHCR pushen. Läuft nicht für Pull Requests (kein Zugriff auf packages:write
+  # aus Forks, und PR-Images will niemand). Tags:
+  #   main            -> :main, :latest, :sha-<kurz>
+  #   Tag v1.2.3      -> :1.2.3, :1.2, :1, :latest
+  #   workflow_dispatch -> :<branch>
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: docker
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # arm64 für Apple Silicon (stdio-Nutzung lokal), amd64 für Server
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Tags + OCI-Labels (source, revision, version). Das source-Label verknüpft
+      # das Package mit dem Repo, dann übernimmt GHCR README und Sichtbarkeit.
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

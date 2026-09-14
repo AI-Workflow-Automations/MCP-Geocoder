@@ -44,9 +44,8 @@ async function post(path, body) {
 document.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => {
     for (const t of document.querySelectorAll(".tab")) t.classList.toggle("is-active", t === tab);
-    document
-      .querySelectorAll(".panel")
-      .forEach((p) => p.classList.toggle("is-active", p.id === `tab-${tab.dataset.tab}`));
+    for (const p of document.querySelectorAll(".panel"))
+      p.classList.toggle("is-active", p.id === `tab-${tab.dataset.tab}`);
     if (tab.dataset.tab === "api") loadApiDoc();
   });
 });

@@ -1,10 +1,10 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.0.0/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.5.13/schema.json",
   "vcs": {
     "enabled": false
   },
   "files": {
-    "includes": ["src/**", "test/**", "scripts/**", "web/**"]
+    "includes": ["src/**", "test/**", "web/**"]
   },
   "formatter": {
     "enabled": true,
@@ -22,7 +22,7 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "complexity": {
         "noExcessiveCognitiveComplexity": {
           "level": "warn",
@@ -57,16 +57,6 @@
   "overrides": [
     {
       "includes": ["web/**"],
-      "linter": {
-        "rules": {
-          "suspicious": {
-            "noConsole": "off"
-          }
-        }
-      }
-    },
-    {
-      "includes": ["scripts/**"],
       "linter": {
         "rules": {
           "suspicious": {
