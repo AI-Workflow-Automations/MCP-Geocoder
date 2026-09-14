@@ -42,7 +42,7 @@ pnpm serve                    # http://localhost:8080
 No local Bun? Everything runs in Docker as well.
 
 ```bash
-docker compose up --build     # demo at http://localhost:8080
+docker run --rm -p 8080:8080 ghcr.io/ai-workflow-automations/mcp-geocoder   # demo at http://localhost:8080
 ```
 
 | URL | What |
@@ -298,6 +298,11 @@ docker compose pull && docker compose up  # prebuilt image from GHCR
 docker compose up --build                 # build locally instead
 docker compose --profile photon up        # plus a self-hosted Photon instance
 ```
+
+Compose does not bind host ports — the services only `expose` 8080 (geocoder) and 2322
+(Photon) inside the Compose network, meant for a reverse proxy or another stack on the same
+network. For a host port, run the image directly (`docker run -p 8080:8080 …`) or add a
+`ports:` entry in a `docker-compose.override.yml`.
 
 ### Image
 
