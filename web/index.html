@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MCP-Geocoder – Demo</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">◎</span>
+      <div>
+        <h1>MCP-Geocoder</h1>
+        <p class="tagline">Fault-tolerant address capture for phone agents – demo</p>
+      </div>
+    </div>
+    <div class="tabs" role="tablist">
+      <button type="button" class="tab is-active" role="tab" data-tab="demo">Demo</button>
+      <button type="button" class="tab" role="tab" data-tab="cases">Hard cases</button>
+      <button type="button" class="tab" role="tab" data-tab="api">API</button>
+    </div>
+    <div class="health" id="health" title="Data sources">
+      <span class="dot" data-provider="openplz"></span> OpenPLZ
+      <span class="dot" data-provider="photon"></span> Photon
+    </div>
+  </header>
+
+  <main>
+    <!-- ============ Demo ============ -->
+    <section id="tab-demo" class="panel is-active" role="tabpanel">
+      <div class="grid">
+        <form id="form" class="card form" autocomplete="off">
+          <h2>What the caller said</h2>
+          <p class="hint">Simulates the transcriber output. Typos are welcome.</p>
+
+          <label>
+            Postal code
+            <input name="postalCode" id="postalCode" value="10115" inputmode="numeric" placeholder="10115">
+          </label>
+          <label>
+            Street (house number may be included)
+            <input name="street" id="street" value="Henrichweg 24" placeholder="Henrichweg 24" required>
+          </label>
+
+          <div class="actions">
+            <button type="submit" class="btn primary" id="submit">Match</button>
+            <button type="button" class="btn" id="check-plz">Check postal code only</button>
+          </div>
+
+          <div class="presets">
+            <span class="presets-label">Examples:</span>
+            <button type="button" class="chip" data-plz="10115" data-street="Henrichweg 24">Henrichweg instead of Heinrichstr.</button>
+            <button type="button" class="chip" data-plz="10115" data-street="Invaliden Str 12a">Invaliden Str 12a</button>
+            <button type="button" class="chip" data-plz="10115" data-street="Akker Straße 3">Akker Straße 3</button>
+            <button type="button" class="chip" data-plz="10115" data-street="Zwitscherweg 7">Non-existent street</button>
+            <button type="button" class="chip" data-plz="" data-street="Kastanienallee 80">Without postal code</button>
+          </div>
+        </form>
+
+        <div class="card result" id="result" hidden>
+          <div class="result-head">
+            <span class="badge" id="status"></span>
+            <span class="flag" id="human" hidden>⚑ hand over to a human</span>
+          </div>
+
+          <div class="speech">
+            <div class="speech-label">The agent says (German, read out verbatim)</div>
+            <blockquote id="speech"></blockquote>
+          </div>
+
+          <ol class="candidates" id="candidates"></ol>
+
+          <details class="reason">
+            <summary>Reasoning for the call log</summary>
+            <p id="reason"></p>
+            <pre id="raw"></pre>
+          </details>
+        </div>
+      </div>
+
+      <div class="card flow">
+        <h2>Conversation flow</h2>
+        <ol class="steps">
+          <li><b>Postal code first.</b> Five digits survive narrowband far better than place names.</li>
+          <li><b>Match the street.</b> Against the official directory of that postal code, not against everything.</li>
+          <li><b>React to the status.</b> <code>confirmed</code> read back · <code>ambiguous</code> read out choices · <code>unresolved</code> hand over.</li>
+          <li><b>Never guess.</b> If the caller rejects everything: <code>flag_for_human</code>.</li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ============ Hard cases ============ -->
+    <section id="tab-cases" class="panel" role="tabpanel">
+      <div class="card">
+        <h2>Hard cases</h2>
+        <p class="hint">
+          Runs live against this instance. Each row is a typical phone-line error – and what the server makes of it.
+          Same cases as in the automated tests, but here against the real data of the postal code.
+        </p>
+        <div class="actions">
+          <button type="button" class="btn primary" id="run-cases">Run all cases</button>
+          <label class="inline">Postal code <input id="cases-plz" value="10115" inputmode="numeric"></label>
+        </div>
+        <div class="table-wrap">
+          <table class="cases" id="cases">
+            <thead>
+              <tr><th>Heard</th><th>Why it is hard</th><th>Status</th><th>Best match</th><th>Confidence</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ API ============ -->
+    <section id="tab-api" class="panel" role="tabpanel">
+      <div class="card">
+        <h2>API</h2>
+        <p class="hint">
+          REST and MCP are equivalent – same business logic, same responses.
+          Full description: <a href="/openapi.json" target="_blank" rel="noopener">/openapi.json</a>
+          · MCP tool <code>describe_api</code> · resource <code>geocoder://docs/api</code>
+        </p>
+        <div id="api-doc" class="api-doc"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>MCP-Geocoder · demo UI · data: OpenPLZ API, Photon (OSM)</span>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

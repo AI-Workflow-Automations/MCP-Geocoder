@@ -1,0 +1,60 @@
+{
+  "_hinweis": "Patch für die Vapi-Assistant-Konfiguration. Blockweise übernehmen, nicht den ganzen Assistenten überschreiben. Adressiert die drei typischen Schwächen deutscher Telefonagenten: Erkennung (STT), Textaufbereitung (TTS), Barge-in.",
+
+  "transcriber": {
+    "_problem": "Namen, Straßen, Orte werden falsch erkannt. Generische oder mehrsprachige Modelle wägen unnötig gegen andere Sprachräume ab.",
+    "provider": "deepgram",
+    "model": "nova-3",
+    "language": "de",
+    "_keyterm": "Liste per Tool generate_keyterms erzeugen und hier einsetzen. Limit: 100 Terme, je max. 50 Zeichen, ohne Intensifier.",
+    "keyterm": ["Invalidenstraße", "Zionskirchstraße", "Berlin"],
+    "_offen": "Vapi-Doku schreibt bei Deepgram 'keywords work with English models', Deepgram bewirbt Keyterm-Prompting für alle Sprachen inkl. Deutsch. Vor dem Rollout gegentesten."
+  },
+
+  "stopSpeakingPlan": {
+    "_problem": "Wortdopplungen. numWords 0 lässt jedes 'mhm' den Agenten unterbrechen, danach setzt er den Satzanfang neu an.",
+    "numWords": 2,
+    "voiceSeconds": 0.3,
+    "backoffSeconds": 1
+  },
+
+  "startSpeakingPlan": {
+    "_problem": "Endpointing. Der Vapi-Provider ist laut Doku für nicht-englische Gespräche besser geeignet als LiveKit.",
+    "waitSeconds": 0.6,
+    "smartEndpointingPlan": { "provider": "vapi" }
+  },
+
+  "voice": {
+    "_problem": "Der Agent verhaspelt sich. Der chunkPlan ist englisch gedacht: expandiert nach US-Muster, liest Währungen als Dollar. Flash v2.5 normalisiert Zahlen nicht.",
+    "provider": "11labs",
+    "model": "eleven_flash_v2_5",
+    "voiceId": "<deutsch-trainierte-Stimme-eintragen>",
+    "stability": 0.85,
+    "similarityBoost": 0.75,
+    "style": 0,
+    "_style": "ElevenLabs nennt style selbst als Ursache für Instabilität und zusätzliche Laute. Auf 0 lassen.",
+    "chunkPlan": {
+      "enabled": true,
+      "minCharacters": 40,
+      "formatPlan": {
+        "enabled": true,
+        "numberToDigitsCutoff": 2025,
+        "replacements": [
+          { "type": "exact", "key": "Str.", "value": "Straße" },
+          { "type": "exact", "key": "str.", "value": "straße" },
+          { "type": "exact", "key": "Nr.", "value": "Nummer" },
+          { "type": "exact", "key": "Dr.", "value": "Doktor" },
+          { "type": "exact", "key": "Prof.", "value": "Professor" },
+          { "type": "exact", "key": "St.", "value": "Sankt" },
+          { "type": "exact", "key": "ca.", "value": "circa" },
+          { "type": "exact", "key": "bzw.", "value": "beziehungsweise" },
+          { "type": "exact", "key": "ggf.", "value": "gegebenenfalls" },
+          { "type": "exact", "key": "z.B.", "value": "zum Beispiel" },
+          { "type": "exact", "key": "u.a.", "value": "unter anderem" }
+        ]
+      }
+    }
+  },
+
+  "_fallback": "Zusätzlich transcriber-fallback-plan setzen, damit ein Deepgram-Ausfall nicht den Call kostet."
+}

@@ -1,0 +1,61 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Helvetica
+
+start
+:street name as heard;
+:normalize
+abbreviations, umlauts, filler words;
+:split off house number;
+:split stem and street type
+"heinrich" + "strasse";
+
+if (postal code confirmed?) then (yes)
+  :load street directory of the postal code;
+else (no)
+  :Photon nationwide,
+  biased to the service area;
+endif
+
+:score every candidate
+0.45 lexical + 0.35 phonetic
++ 0.10 token + 0.10 street type;
+
+if (street types conflict?
+Weg vs. Straße) then (yes)
+  #ffffcc:cap confidence at 0.84
+  never auto-confirm;
+endif
+
+if (best hit < auto threshold?) then (yes)
+  :query Photon as well;
+endif
+
+:rank, merge spelling variants,
+trim to suggestion band;
+
+if (confidence < 0.70?) then (yes)
+  #ffcccc:status = unresolved
+  needsHuman = true;
+  :hand over to a human;
+  stop
+endif
+
+if (confidence >= 0.85
+AND margin to 2nd >= 0.08?) then (yes)
+  #ccffcc:status = confirmed;
+  :read the address back;
+else (no)
+  #ffffcc:status = ambiguous;
+  :read out top 3, let the caller choose;
+endif
+
+if (caller rejects everything?) then (yes)
+  #ffcccc:flag_for_human;
+  stop
+endif
+
+:address captured;
+stop
+@enduml

@@ -1,0 +1,70 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam componentStyle rectangle
+skinparam defaultFontName Helvetica
+
+actor "Caller" as caller
+component "Phone agent\n(e.g. Vapi)" as agent
+component "Demo UI\n/ REST client" as web
+
+package "MCP-Geocoder (Bun)" {
+  package "Interfaces" {
+    component "MCP server\ntools + resources" as mcp
+    component "REST API\n+ OpenAPI" as rest
+  }
+  component "GeocoderService\n(facade)" as service
+  package "Application" {
+    component "AddressResolver" as resolver
+    component "PostalCodeResolver" as plz
+    component "KeytermBuilder" as keyterms
+  }
+  package "Domain (pure, no I/O)" {
+    component "Normalization" as norm
+    component "Cologne phonetics\nJaro-Winkler\nDamerau-Levenshtein" as sim
+    component "Scoring +\ndecision" as score
+  }
+  package "Infrastructure" {
+    component "OpenPlzDirectory" as openplz
+    component "PhotonSearch" as photon
+    component "TTL cache" as cache
+  }
+  component "Speech formatter\n(speech)" as speech
+}
+
+cloud "OpenPLZ API\nofficial directory" as openplzApi
+cloud "Photon\nOSM, self-hosted" as photonApi
+
+caller --> agent : voice
+agent --> mcp : MCP over HTTP
+web --> rest : JSON
+mcp --> service
+rest --> service
+service --> resolver
+service --> plz
+service --> keyterms
+resolver --> norm
+resolver --> score
+score --> sim
+resolver ..> openplz : port StreetDirectory
+resolver ..> photon : port StreetSearch
+openplz --> cache
+photon --> cache
+cache --> openplzApi
+cache --> photonApi
+resolver --> speech : ready-to-speak sentence
+
+note right of score
+  The stem decides,
+  the street type caps:
+  "Henrichweg" is never
+  confirmed as
+  "Heinrichstraße".
+end note
+
+note bottom of photonApi
+  Deliberately not Nominatim:
+  built for resolution,
+  not for typos.
+end note
+@enduml

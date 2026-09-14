@@ -1,0 +1,32 @@
+services:
+  geocoder:
+    build: .
+    image: mcp-geocoder:latest
+    ports:
+      - "${HTTP_PORT:-8080}:8080"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      HTTP_PORT: "8080"
+    restart: unless-stopped
+
+  # Optional: eigene Photon-Instanz für Telefonie-Last.
+  # Start: docker compose --profile photon up
+  # Erster Start lädt den Deutschland-Extrakt (mehrere GB) - dauert.
+  # Danach PHOTON_BASE_URL=http://photon:2322 in .env setzen.
+  photon:
+    profiles: ["photon"]
+    image: rtuszik/photon-docker:latest
+    environment:
+      COUNTRY_CODE: de
+      UPDATE_STRATEGY: PARALLEL
+      UPDATE_INTERVAL: 168h
+    volumes:
+      - photon-data:/photon/photon_data
+    ports:
+      - "2322:2322"
+    restart: unless-stopped
+
+volumes:
+  photon-data:

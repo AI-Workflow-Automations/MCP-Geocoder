@@ -1,0 +1,44 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName Helvetica
+
+actor Caller
+participant "Agent" as A
+participant "MCP-Geocoder" as G
+database "OpenPLZ" as O
+actor "Staff" as H
+
+A -> Caller : "Please tell me your postal code first."
+Caller -> A : "10115"
+A -> G : resolve_postal_code("10115")
+G -> O : Localities?postalCode=10115
+O --> G : Berlin
+G --> A : status=confirmed\nspeech="1 0 1 1 5, das ist Berlin. Richtig?"
+A -> Caller : reads speech verbatim
+Caller -> A : "Yes"
+
+A -> Caller : "And the street name?"
+Caller -> A : "Heinrichstraße 24"
+note right of A : transcriber returns "Henrichweg 24"
+A -> G : resolve_address(street, postalCode)
+G -> O : Streets?postalCode=10115
+O --> G : street list
+G -> G : normalize, score,\ncheck street type, rank
+
+alt status = confirmed
+  G --> A : best + speech="Ich habe notiert: ... Stimmt das so?"
+  A -> Caller : read-back
+else status = ambiguous
+  G --> A : up to 3 candidates + choice question
+  A -> Caller : "Erstens ... Zweitens ... Welche ist richtig?"
+  Caller -> A : "The first one"
+  A -> G : select_candidate(...)
+  G --> A : normalized address + closing sentence
+else needsHuman = true
+  G --> A : speech="... ich gebe Sie weiter."
+  A -> G : flag_for_human(reason)
+  A -> H : hand over call with flag
+  note right of H : Nothing is guessed.
+end
+@enduml

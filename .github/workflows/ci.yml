@@ -1,0 +1,86 @@
+# CI: Typecheck, Lint (Biome), AI-Slop-Check, Tests, Docker-Build + Smoke-Test
+# pnpm verwaltet die Abhängigkeiten, Bun führt aus.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Nur ein Lauf pro Ref, ältere werden abgebrochen
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      # Version kommt aus packageManager in package.json
+      - uses: pnpm/action-setup@v4
+
+      # Node nur für pnpm und tsc; setup-node cached den pnpm-Store
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Dependencies installieren
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      # Biome: Lint + Formatierung (src, test, scripts, web)
+      - name: Statische Analyse
+        run: pnpm lint
+
+      # Eigenes Skript: KI-Floskeln, Chat-Artefakte, Platzhalter, Debug-Reste
+      - name: AI-Slop-Check
+        run: pnpm slop
+
+      - name: Tests
+        run: pnpm test
+
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Image nur lokal bauen, nicht pushen
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: mcp-geocoder:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Container starten, Health-Endpoint prüfen, bei Fehler Logs zeigen
+      - name: Smoke-Test
+        run: |
+          docker run -d -p 8080:8080 --name geocoder mcp-geocoder:ci
+          for i in $(seq 1 15); do
+            if curl -fsS http://localhost:8080/health >/dev/null 2>&1; then
+              echo "health ok nach ${i}s"; break
+            fi
+            sleep 1
+          done
+          curl -fsS http://localhost:8080/health || { docker logs geocoder; exit 1; }
+          docker rm -f geocoder

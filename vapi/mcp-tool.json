@@ -1,0 +1,11 @@
+{
+  "_hinweis": "MCP-Geocoder als Tool in Vapi einbinden. Unter Tools anlegen und dem Assistenten zuweisen.",
+  "type": "mcp",
+  "function": { "name": "mcp_geocoder" },
+  "server": {
+    "url": "https://geocoder.example.com/mcp",
+    "headers": { "Authorization": "Bearer <MCP_AUTH_TOKEN>" }
+  },
+  "metadata": { "protocol": "streamable-http" },
+  "_test": "Vor dem Zuweisen: curl -fsS https://geocoder.example.com/health muss {\"ok\":true,...} liefern."
+}

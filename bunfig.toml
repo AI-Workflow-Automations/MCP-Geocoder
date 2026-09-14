@@ -1,0 +1,4 @@
+[test]
+# Tests laufen ohne Netz - alle Datenquellen sind Fixtures.
+root = "./test"
+coverage = false
