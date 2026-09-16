@@ -1,3 +1,4 @@
+import { extractPostalCode, normalizeStreetName } from "../domain/normalization.js";
 import type { EscalationEntry, EscalationSink, StreetDirectory, StreetSearch } from "../domain/ports.js";
 import type { MatchingThresholds } from "../domain/scoring.js";
 import type { Language } from "../domain/types.js";
@@ -7,6 +8,10 @@ import { AddressResolver, type ResolveAddressInput } from "./address-resolver.js
 import { KeytermBuilder } from "./keyterm-builder.js";
 import { PostalCodeResolver } from "./postal-code-resolver.js";
 
+/** Standard- und Höchstlimit für Straßenlisten (MCP/REST). */
+export const DEFAULT_STREET_LIST_LIMIT = 50;
+export const MAX_STREET_LIST_LIMIT = 100;
+
 export interface SelectCandidateInput {
   street: string;
   postalCode: string;
@@ -14,6 +19,27 @@ export interface SelectCandidateInput {
   houseNumber?: string;
   /** Sprache des Abschlusssatzes. Fehlt sie, gilt der Server-Standard. */
   language?: Language;
+}
+
+export interface ListStreetsInput {
+  /** Bestätigte fünfstellige Postleitzahl */
+  postalCode: string;
+  /** Optionaler Namenspräfix (normalisiert, case-/umlauttolerant) */
+  prefix?: string;
+  /** Maximale Anzahl zurückgegebener Straßennamen (1–100, Standard 50) */
+  limit?: number;
+}
+
+export interface ListStreetsResult {
+  postalCode: string;
+  streets: string[];
+  /** Länge von `streets` */
+  count: number;
+  /** Treffer nach Präfixfilter, vor Limit */
+  total: number;
+  /** true, wenn `total` das Limit überschreitet */
+  truncated: boolean;
+  prefix?: string;
 }
 
 export interface GeocoderDependencies {
@@ -82,6 +108,42 @@ export class GeocoderService {
     return this.keyterms.build(codes, limit);
   }
 
+  /**
+   * Straßenliste einer bestätigten PLZ.
+   *
+   * Nutzt `StreetDirectory.listStreets` (inkl. OpenPLZ-TTL-Cache). Prefix und
+   * Limit werden aus der gecachten Vollliste abgeleitet – kein Extra-Cache.
+   * Kein `speech`: die Liste ist Setup/Klärung, keine TTS-Vorleseliste.
+   */
+  async listStreets(input: ListStreetsInput): Promise<ListStreetsResult> {
+    const postalCode = extractPostalCode(input.postalCode);
+    if (!postalCode) {
+      throw new Error('Ungültige Postleitzahl. list_streets erwartet eine bestätigte fünfstellige PLZ (z.B. "10115").');
+    }
+
+    const limit = clampStreetListLimit(input.limit);
+    const prefix = input.prefix?.trim() || undefined;
+    const prefixNormalized = prefix ? normalizeStreetName(prefix) : undefined;
+
+    const entries = await this.deps.directory.listStreets(postalCode);
+    const matching = prefixNormalized
+      ? entries.filter((entry) => normalizeStreetName(entry.street).startsWith(prefixNormalized))
+      : entries;
+
+    const total = matching.length;
+    const truncated = total > limit;
+    const streets = matching.slice(0, limit).map((entry) => entry.street);
+
+    return {
+      postalCode,
+      streets,
+      count: streets.length,
+      total,
+      truncated,
+      ...(prefix ? { prefix } : {}),
+    };
+  }
+
   get thresholds(): MatchingThresholds {
     return this.deps.thresholds;
   }
@@ -98,4 +160,9 @@ export class GeocoderService {
   private languageOr(requested?: Language): Language {
     return requested ?? this.language;
   }
+}
+
+function clampStreetListLimit(limit?: number): number {
+  if (typeof limit !== "number" || !Number.isFinite(limit)) return DEFAULT_STREET_LIST_LIMIT;
+  return Math.min(MAX_STREET_LIST_LIMIT, Math.max(1, Math.trunc(limit)));
 }

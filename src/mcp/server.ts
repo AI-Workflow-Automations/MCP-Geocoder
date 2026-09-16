@@ -127,6 +127,21 @@ export function createMcpServer(service: GeocoderService, language: Language = s
     ({ postalCodes, limit }) => guarded(() => service.buildKeyterms(postalCodes, limit)),
   );
 
+  const streets = texts.tools.list_streets;
+  server.registerTool(
+    "list_streets",
+    {
+      title: streets.title,
+      description: streets.description,
+      inputSchema: {
+        postalCode: z.string().describe(streets.inputs.postalCode),
+        prefix: z.string().optional().describe(streets.inputs.prefix),
+        limit: z.number().int().min(1).max(100).optional().describe(streets.inputs.limit),
+      },
+    },
+    ({ postalCode, prefix, limit }) => guarded(() => service.listStreets({ postalCode, prefix, limit })),
+  );
+
   const describe = texts.tools.describe_api;
   server.registerTool(
     "describe_api",

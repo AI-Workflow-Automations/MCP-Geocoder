@@ -45,6 +45,14 @@ interface OpenApiTexts {
   select: { summary: string; description: string; street: string; response: string };
   escalate: { summary: string; description: string; reasonExample: string; response: string };
   keyterms: { summary: string; description: string; postalCodes: string; response: string };
+  streets: {
+    summary: string;
+    description: string;
+    postalCode: string;
+    prefix: string;
+    limit: string;
+    response: string;
+  };
   health: { summary: string; response: string };
   mcp: { summary: string; description: string; response: string };
   schemas: {
@@ -113,6 +121,15 @@ const de: OpenApiTexts = {
       "Erzeugt aus dem Einzugsgebiet eine nach Fehleranfälligkeit priorisierte Keyterm-Liste für Deepgram Nova-3 (max. 100 Terme, je max. 50 Zeichen).",
     postalCodes: "Leer = SERVICE_AREA_POSTAL_CODES",
     response: "Keyterm-Liste",
+  },
+  streets: {
+    summary: "Straßen einer PLZ auflisten",
+    description:
+      "Liefert die Straßenliste einer bestätigten Postleitzahl. Optional Präfix und Limit (Standard 50, max. 100). Antwort strukturiert mit `streets`, `count`, `total`, `truncated` – nicht zum Vorlesen der Vollliste gedacht.",
+    postalCode: "Bestätigte fünfstellige PLZ",
+    prefix: "Optionaler Namenspräfix",
+    limit: "Maximale Anzahl Straßennamen (1–100, Standard 50)",
+    response: "Straßenliste",
   },
   health: { summary: "Erreichbarkeit der Datenquellen und aktive Schwellwerte", response: "Status" },
   mcp: {
@@ -188,6 +205,15 @@ const en: OpenApiTexts = {
       "Builds a keyterm list for Deepgram Nova-3 from the service area, prioritized by error-proneness (max. 100 terms, max. 50 characters each).",
     postalCodes: "Empty = SERVICE_AREA_POSTAL_CODES",
     response: "Keyterm list",
+  },
+  streets: {
+    summary: "List streets for a postal code",
+    description:
+      "Returns the street list for a confirmed postal code. Optional prefix and limit (default 50, max 100). Structured response with `streets`, `count`, `total`, `truncated` – not meant for reading the full list aloud.",
+    postalCode: "Confirmed five-digit postal code",
+    prefix: "Optional name prefix",
+    limit: "Maximum number of street names (1–100, default 50)",
+    response: "Street list",
   },
   health: { summary: "Reachability of the data sources and active thresholds", response: "Status" },
   mcp: {
@@ -446,6 +472,52 @@ export function buildOpenApiDocument(language: Language = "de") {
                       keyterms: { type: "array", items: { type: "string" } },
                       transcriberConfig: { type: "object" },
                       stats: { type: "object" },
+                    },
+                  },
+                },
+              },
+            },
+            "400": badRequest,
+          },
+        },
+      },
+      "/api/streets": {
+        post: {
+          tags: [tag.setup],
+          summary: t.streets.summary,
+          description: t.streets.description,
+          operationId: "listStreets",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["postalCode"],
+                  properties: {
+                    postalCode: { type: "string", description: t.streets.postalCode, example: "10115" },
+                    prefix: { type: "string", description: t.streets.prefix, example: "Hein" },
+                    limit: { type: "integer", minimum: 1, maximum: 100, description: t.streets.limit },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            "200": {
+              description: t.streets.response,
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    required: ["postalCode", "streets", "count", "total", "truncated"],
+                    properties: {
+                      postalCode: { type: "string" },
+                      streets: { type: "array", items: { type: "string" } },
+                      count: { type: "integer" },
+                      total: { type: "integer" },
+                      truncated: { type: "boolean" },
+                      prefix: { type: "string" },
                     },
                   },
                 },

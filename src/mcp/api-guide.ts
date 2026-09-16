@@ -26,6 +26,7 @@ REST und MCP sind gleichwertig – dieselbe Fachlogik, dieselben Antworten.
 | \`select_candidate\` | \`POST /api/address/select\` | Nach einer Auswahlfrage |
 | \`flag_for_human\` | \`POST /api/escalate\` | Anrufer lehnt alles ab / dritter Fehlversuch |
 | \`generate_keyterms\` | \`POST /api/keyterms\` | Einmalig beim Einrichten |
+| \`list_streets\` | \`POST /api/streets\` | Bestätigte PLZ: Straßenliste (Setup/Klärung; nicht vorlesen) |
 | \`describe_api\` | \`GET /openapi.json\` | Diese Dokumentation |
 
 ## Gesprächsablauf
@@ -99,6 +100,7 @@ REST and MCP are equivalent – same business logic, same responses.
 | \`select_candidate\` | \`POST /api/address/select\` | After a choice question |
 | \`flag_for_human\` | \`POST /api/escalate\` | Caller rejects everything / third failed attempt |
 | \`generate_keyterms\` | \`POST /api/keyterms\` | Once during setup |
+| \`list_streets\` | \`POST /api/streets\` | Confirmed postal code: street list (setup/clarification; do not read aloud) |
 | \`describe_api\` | \`GET /openapi.json\` | This documentation |
 
 ## Conversation flow

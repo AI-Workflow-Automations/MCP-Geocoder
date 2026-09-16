@@ -89,4 +89,36 @@ describe("GeocoderService", () => {
       await expect(bare.buildKeyterms([])).rejects.toThrow("Keine Postleitzahlen");
     });
   });
+
+  describe("listStreets", () => {
+    it("liefert Straßen einer bestätigten PLZ mit count und truncated", async () => {
+      const result = await service.listStreets({ postalCode: FIXTURE_POSTAL_CODE, limit: 5 });
+      expect(result.postalCode).toBe("10115");
+      expect(result.streets).toHaveLength(5);
+      expect(result.count).toBe(5);
+      expect(result.total).toBeGreaterThan(5);
+      expect(result.truncated).toBe(true);
+      expect(result).not.toHaveProperty("speech");
+    });
+
+    it("filtert nach Präfix ohne die Vollliste vorzulesen", async () => {
+      const result = await service.listStreets({ postalCode: FIXTURE_POSTAL_CODE, prefix: "Hein" });
+      expect(result.streets).toEqual(["Heinrichstraße", "Heinrichsplatz"]);
+      expect(result.count).toBe(2);
+      expect(result.truncated).toBe(false);
+      expect(result.prefix).toBe("Hein");
+    });
+
+    it("gibt bei unbekannter PLZ eine leere Liste zurück", async () => {
+      const result = await service.listStreets({ postalCode: "99999" });
+      expect(result.streets).toEqual([]);
+      expect(result.count).toBe(0);
+      expect(result.total).toBe(0);
+      expect(result.truncated).toBe(false);
+    });
+
+    it("lehnt ungültige Postleitzahlen ab", async () => {
+      await expect(service.listStreets({ postalCode: "abc" })).rejects.toThrow("Postleitzahl");
+    });
+  });
 });
