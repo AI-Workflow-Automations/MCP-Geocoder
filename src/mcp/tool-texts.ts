@@ -12,6 +12,7 @@ export type ToolName =
   | "select_candidate"
   | "flag_for_human"
   | "generate_keyterms"
+  | "list_streets"
   | "describe_api";
 
 export interface ToolText {
@@ -42,6 +43,8 @@ const de: McpTexts = {
     "3. Bei status=ambiguous das Feld speech vorlesen, dann select_candidate mit der Wahl.",
     "4. Bei needsHuman=true nichts raten: speech sagen und den Call übergeben.",
     "5. Lehnt der Anrufer alle Vorschläge ab oder klappt es dreimal nicht: flag_for_human.",
+    "",
+    "list_streets nur bei bestätigter PLZ für Setup, Debugging oder seltene Klärung – nie die Vollliste vorlesen.",
     "",
     "Das Feld speech ist immer fertig formatiert. Wortwörtlich vorlesen, nicht umformulieren.",
     'Sprache von speech: Parameter language ("de" oder "en"), Standard ist die Server-Sprache.',
@@ -84,6 +87,16 @@ const de: McpTexts = {
         "Erzeugt aus dem Einzugsgebiet eine nach Fehleranfälligkeit priorisierte Keyterm-Liste für den Deepgram-Transcriber, inklusive fertigem Konfigurationsblock. Einmalig beim Einrichten, nicht im Gespräch.",
       inputs: { postalCodes: "Leer = SERVICE_AREA_POSTAL_CODES" },
     },
+    list_streets: {
+      title: "Straßen einer PLZ auflisten",
+      description:
+        "Liefert die Straßenliste einer bestätigten Postleitzahl (optional Präfix und Limit). Für Setup, Debugging und seltene Klärfragen – nicht die gesamte Liste vorlesen; Antwort ist strukturiert (streets, count, truncated).",
+      inputs: {
+        postalCode: "Bestätigte fünfstellige PLZ",
+        prefix: 'Optionaler Namenspräfix, z.B. "Hein"',
+        limit: "Maximale Anzahl Straßennamen (1–100, Standard 50)",
+      },
+    },
     describe_api: {
       title: "API-Dokumentation",
       description:
@@ -107,6 +120,8 @@ const en: McpTexts = {
     "3. On status=ambiguous read out the speech field, then select_candidate with the choice.",
     "4. On needsHuman=true do not guess: say speech and hand over the call.",
     "5. If the caller rejects every suggestion or it fails three times: flag_for_human.",
+    "",
+    "Use list_streets only with a confirmed postal code for setup, debugging, or rare clarification – never read the full list aloud.",
     "",
     "The speech field is always final wording. Read it out verbatim, do not rephrase.",
     'Language of speech: parameter language ("de" or "en"), defaults to the server language.',
@@ -148,6 +163,16 @@ const en: McpTexts = {
       description:
         "Builds a keyterm list for the Deepgram transcriber from the service area, prioritized by error-proneness, including a ready-made configuration block. Once during setup, not during a call.",
       inputs: { postalCodes: "Empty = SERVICE_AREA_POSTAL_CODES" },
+    },
+    list_streets: {
+      title: "List streets for a postal code",
+      description:
+        "Returns the street list for a confirmed postal code (optional prefix and limit). For setup, debugging, and rare clarification – do not read the full list aloud; the response is structured (streets, count, truncated).",
+      inputs: {
+        postalCode: "Confirmed five-digit postal code",
+        prefix: 'Optional name prefix, e.g. "Hein"',
+        limit: "Maximum number of street names (1–100, default 50)",
+      },
     },
     describe_api: {
       title: "API documentation",

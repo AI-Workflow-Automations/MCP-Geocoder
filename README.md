@@ -248,6 +248,7 @@ MCP resource `geocoder://docs/api`.
 | `select_candidate` | `POST /api/address/select` | After a choice question — only then the address counts as captured |
 | `flag_for_human` | `POST /api/escalate` | Caller rejects everything, third failed attempt. Writes a structured log line |
 | `generate_keyterms` | `POST /api/keyterms` | Once during setup: Deepgram keyterm list from the service area |
+| `list_streets` | `POST /api/streets` | Confirmed postal code: street list for setup/debugging (structured; do not read aloud) |
 | `describe_api` | `GET /openapi.json` | This documentation, with the active thresholds |
 | — | `GET /health` | Data sources, thresholds |
 

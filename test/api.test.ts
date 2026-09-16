@@ -74,6 +74,26 @@ describe("REST-API", () => {
     }
   });
 
+  it("listet Straßen einer PLZ", async () => {
+    const { base, close } = await startApp();
+    try {
+      const response = await fetch(`${base}/api/streets`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ postalCode: "10115", prefix: "Hein", limit: 10 }),
+      });
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      expect(body.postalCode).toBe("10115");
+      expect(body.streets).toContain("Heinrichstraße");
+      expect(body.count).toBe(body.streets.length);
+      expect(body.truncated).toBe(false);
+      expect(body.speech).toBeUndefined();
+    } finally {
+      await close();
+    }
+  });
+
   it("weist fehlende Pflichtfelder mit 400 ab", async () => {
     const { base, close } = await startApp();
     try {
@@ -95,6 +115,7 @@ describe("REST-API", () => {
       const spec = await (await fetch(`${base}/openapi.json`)).json();
       expect(spec.openapi).toBe("3.1.0");
       expect(Object.keys(spec.paths)).toContain("/api/address");
+      expect(Object.keys(spec.paths)).toContain("/api/streets");
       const page = await fetch(`${base}/`);
       expect(page.status).toBe(200);
       expect(await page.text()).toContain("MCP-Geocoder");
@@ -142,6 +163,7 @@ describe("REST-API", () => {
       });
       const text = await list.text();
       expect(text).toContain("resolve_address");
+      expect(text).toContain("list_streets");
       expect(text).toContain("describe_api");
     } finally {
       await close();

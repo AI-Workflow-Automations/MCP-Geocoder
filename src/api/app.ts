@@ -149,6 +149,19 @@ function mountRestApi(app: express.Express, service: GeocoderService, language: 
       return service.buildKeyterms(codes, limit);
     }),
   );
+
+  app.post(
+    "/api/streets",
+    asyncRoute((req) => {
+      const postalCode = requireString(req.body, "postalCode");
+      const limit = typeof req.body?.limit === "number" ? req.body.limit : undefined;
+      return service.listStreets({
+        postalCode,
+        prefix: optionalString(req.body, "prefix"),
+        limit,
+      });
+    }),
+  );
 }
 
 /**
